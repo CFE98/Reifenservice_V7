@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<!-- PWA / Vollbild -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#365070">
+
+<title>FID- Getränkerechner</title>
+
+<style>
+:root {
+    --bg: #365070;
+    --card: #3d5a80;
+    --accent: #f77f00;
+    --selected: #ffd166;
+    --pfand-neg: #8d1c1c;
+    --total-color: #ff6f00;
+    --text: #ffffff;
+    --reset-color: #ffd166;
+}
+
+body {
+    margin: 0;
+    padding: 4px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Arial, sans-serif;
+    font-weight: 700;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    touch-action: manipulation;
+    user-select: none;
+}
+
+h1 {
+    text-align: center;
+    font-size: 1.55em;
+    margin: 2px 0 4px;
+    font-weight: 800;
+}
+
+/* ===== HEADER ===== */
+.top-cards {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.top-card {
+    background: var(--card);
+    padding: 8px 6px;
+    border-radius: 8px;
+    flex: 1;
+    text-align: center;
+    font-size: 1.15em;
+}
+
+.top-card.total {
+    background: var(--total-color);
+    color: #000;
+    font-weight: 800;
+}
+
+/* ===== GRID ===== */
+.grid-wrapper {
+    flex: 1;
+    display: flex;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    width: 100%;
+}
+
+/* ===== BUTTONS ===== */
+button.drink,
+button.reset-mask {
+    background: var(--card);
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    padding: 10px 6px;
+    cursor: pointer;
+    font-weight: 800;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ===== SELECTED (JETZT GELB) ===== */
+button.selected {
+    border-color: var(--selected);
+    box-shadow: 0 0 6px var(--selected);
+}
+
+/* ===== KACHEL-INHALT ===== */
+.drink-top {
+    display: grid;
+    grid-template-columns: 1.7fr 1fr 0.8fr;
+    align-items: center;
+    width: 100%;
+}
+
+.drink-name {
+    text-align: left;
+    font-size: 1.05em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.drink-price {
+    text-align: center;
+    font-size: 1.05em;
+    white-space: nowrap;
+}
+
+.count {
+    text-align: right;
+    font-size: 1.05em;
+    white-space: nowrap;
+}
+
+/* ===== PFAND ===== */
+button.pfand-neg {
+    background: var(--pfand-neg);
+    border-color: #e57373;
+}
+
+button.pfand-neg.selected {
+    border-color: var(--selected);
+}
+
+/* ===== RESET ===== */
+button.reset-mask {
+    background: var(--reset-color);
+    color: #000;
+    border-color: #e6c200;
+    font-size: 1.05em;
+}
+
+/* ===== FOOTER ===== */
+footer {
+    text-align: center;
+    font-size: 0.7em;
+    margin-top: 2px;
+    color: #ddd;
+}
+</style>
+</head>
+
+<body>
+
+<h1>FID- Getränkerechner</h1>
+
+<div class="top-cards">
+    <div class="top-card">
+        Getränkepreis<br><span id="drinkSumValue">0,00 €</span>
+    </div>
+    <div class="top-card">
+        Pfand<br><span id="pfandValue">0 - 0</span>
+    </div>
+    <div class="top-card total">
+        Gesamt<br><span id="totalValue">0,00 €</span>
+    </div>
+</div>
+
+<div class="grid-wrapper">
+    <div class="grid" id="buttons"></div>
+</div>
+
+<footer>
+    © Christoph Eichlberger<br>
+    FF Untertressleinsbach
+</footer>
+
+<script>
+let totalDrinks = 0;
+const pfandPreis = 1;
+const counts = {};
+let pfandClicks = 0;
+
+const drinks = {
+    "Bacardi Cola": 4.0,
+    "Märzen": 4.0,
+    "Cola Rum": 3.5,
+    "Flügerl": 4.0,
+    "Flying Hirsch": 4.5,
+    "Jacky Bull": 4.5,
+    "Jacky Cola": 4.0,
+    "Skiwasser": 3.5,
+    "Vodka Bull": 4.5,
+    "Vodka Orange": 4.0,
+    "Jägermeister": 3.0,
+    "Cola / Orange": 2.5,
+    "Mineral": 2.0,
+    "Red Bull": 3.5
+};
+
+const container = document.getElementById("buttons");
+
+for (const [name, price] of Object.entries(drinks)) {
+    counts[name] = 0;
+    const btn = document.createElement("button");
+    btn.className = "drink";
+    btn.innerHTML = `
+        <div class="drink-top">
+            <span class="drink-name">${name}</span>
+            <span class="drink-price">${price.toFixed(2)} €</span>
+            <span class="count" id="c-${name}"></span>
+        </div>`;
+    btn.onclick = () => addDrink(name, price, btn);
+    container.appendChild(btn);
+}
+
+const pfandBtn = document.createElement("button");
+pfandBtn.className = "drink pfand-neg";
+pfandBtn.innerHTML = `
+    <div class="drink-top">
+        <span class="drink-name">-Pfand</span>
+        <span class="drink-price">1,00 €</span>
+        <span class="count" id="c-pfand"></span>
+    </div>`;
+pfandBtn.onclick = () => addPfand(pfandBtn);
+container.appendChild(pfandBtn);
+
+const resetBtn = document.createElement("button");
+resetBtn.className = "reset-mask";
+resetBtn.innerText = "Maske leeren";
+resetBtn.onclick = resetAll;
+container.appendChild(resetBtn);
+
+function addDrink(name, price, btn) {
+    counts[name]++;
+    totalDrinks += price;
+    document.getElementById("c-" + name).innerText = "x" + counts[name];
+    btn.classList.add("selected");
+    update();
+}
+
+function addPfand(btn) {
+    pfandClicks++;
+    document.getElementById("c-pfand").innerText = "x" + pfandClicks;
+    btn.classList.add("selected");
+    update();
+}
+
+function update() {
+    const drinkCount = Object.values(counts).reduce((a,b)=>a+b,0);
+    document.getElementById("drinkSumValue").innerText =
+        totalDrinks.toFixed(2).replace(".", ",") + " €";
+    document.getElementById("pfandValue").innerText =
+        `${drinkCount} - ${pfandClicks}`;
+    const total = totalDrinks + (drinkCount - pfandClicks) * pfandPreis;
+    document.getElementById("totalValue").innerText =
+        total.toFixed(2).replace(".", ",") + " €";
+}
+
+function resetAll() {
+    totalDrinks = 0;
+    pfandClicks = 0;
+    for (const k in counts) {
+        counts[k] = 0;
+        document.getElementById("c-" + k).innerText = "";
+    }
+    document.getElementById("c-pfand").innerText = "";
+    document.querySelectorAll("button").forEach(b=>b.classList.remove("selected"));
+    update();
+}
+</script>
+
+</body>
+</html>
